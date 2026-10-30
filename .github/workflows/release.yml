@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -38,16 +38,24 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v2
+          cache: true
 
       - name: Flutter pub get
         run: flutter pub get
 
+      - name: 替换Android Gradle源为阿里云镜像
+        run: |
+          BUILD_GRADLE=android/build.gradle
+          # 替换 google()、mavenCentral() 为阿里云镜像
+          sed -i 's|google()|maven { url "https://maven.aliyun.com/repository/google" }|g' $BUILD_GRADLE
+          sed -i 's|mavenCentral()|maven { url "https://maven.aliyun.com/repository/public" }|g' $BUILD_GRADLE
+          # 可选：jcenter 备用（新项目一般不用）
+          sed -i 's|jcenter()|maven { url "https://maven.aliyun.com/repository/jcenter" }|g' $BUILD_GRADLE
+          cat $BUILD_GRADLE
+
       - name: Accept Android licenses
         run: |
-          yes | sdkmanager --licenses
+          yes | flutter doctor --android-licenses
 
       - name: Decode signing keystore
         run: |
@@ -92,13 +100,13 @@ jobs:
         with:
           name: app-release-apk
           path: build/app/outputs/apk/release/
-          retention-days: 1  # 只保留1天，节省存储空间
+          retention-days: 1
 
   release:
     name: Create Release
     runs-on: ubuntu-latest
-    needs: build  # 依赖build作业完成
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'  # push tag 或手动触发时运行
+    needs: build
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
     permissions:
       contents: write
